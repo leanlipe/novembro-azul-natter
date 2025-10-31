@@ -346,5 +346,23 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('gameCanvas');
+  if (canvas) {
+    function callJump() {
+      try {
+        if (typeof jump === 'function' && !window.isJumping) jump();
+      } catch(e) { console.warn('Erro ao chamar jump:', e); }
+    }
+    const doTouch = (ev) => { ev.preventDefault(); callJump(); };
+    canvas.addEventListener('touchstart', doTouch, {passive:false});
+    canvas.addEventListener('pointerdown', (ev)=>{ if(ev.pointerType==='touch'){ doTouch(ev);} }, {passive:false});
+    canvas.addEventListener('click', doTouch);
+  }
+});
+</script>
+
 </body>
 </html>
