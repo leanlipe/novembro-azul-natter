@@ -62,30 +62,8 @@ body{
 </style>
 
 <style>
-:root { --vh: 1vh; }
-#gameCanvas, canvas#gameCanvas {
-  width: calc(100vw - 24px);
-  height: auto;
-  aspect-ratio: 2 / 1;
-  margin: 0 auto;
-  image-rendering: pixelated;
-  image-rendering: crisp-edges;
-  touch-action: none;
-  border-radius: 12px;
-}
-#rankingGlobal, .leaderboard, #leaderboardList, [id*="ranking"] {
-  max-height: calc(var(--vh) * 75);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-#rotateHint {
-  position: fixed; inset: 0; display: none;
-  align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.5); color: #fff; z-index: 9999;
-  font: 600 16px/1.4 system-ui, Arial; text-align: center; padding: 20px;
-}
-#rotateHint .box { background: #0b4c8a; padding: 16px 20px; border-radius: 12px; max-width: 420px; }
+/* Canvas: bloqueia gestos de navegação/zoom enquanto o jogo roda */
+#gameCanvas { touch-action: none; -ms-touch-action: none; }
 </style>
 
 </head>
@@ -295,115 +273,54 @@ body{
   </script>
 
 <script>
-function setVh(){ const vh=window.innerHeight*0.01; document.documentElement.style.setProperty('--vh', `${vh}px`); }
-window.addEventListener('resize', setVh); window.addEventListener('orientationchange', setVh); setVh();
-
 document.addEventListener('DOMContentLoaded', () => {
-  const canvas=document.getElementById('gameCanvas');
-  const hint=document.createElement('div'); hint.id='rotateHint';
-  hint.innerHTML='<div class="box">Para jogar melhor, gire o celular para <b>paisagem</b> ou toque para continuar em tela cheia.</div>';
-  document.body.appendChild(hint);
+  const canvas = document.getElementById('gameCanvas');
 
-  const obs=new MutationObserver(()=>{
-    if(!canvas) return;
-    const visible=getComputedStyle(canvas).display!=='none';
-    if(visible) enterGameMode();
+  // Ajusta o canvas para ocupar a tela inteira do celular
+  function setFullScreenCanvas() {
+    if (!canvas) return;
+    const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+    canvas.style.width = '100vw';
+    canvas.style.height = vh + 'px';
+  }
+
+  // Habilita/desabilita scroll apenas durante o jogo
+  function setScroll(active) {
+    document.documentElement.style.overflow = active ? 'hidden' : 'auto';
+    document.body.style.overflow = active ? 'hidden' : 'auto';
+  }
+
+  // Observa quando o jogo inicia (canvas aparece) e quando termina (canvas some)
+  const obs = new MutationObserver(() => {
+    const visible = getComputedStyle(canvas).display !== 'none';
+    if (visible) {
+      setScroll(true);
+      setFullScreenCanvas();
+    } else {
+      setScroll(false);
+    }
   });
-  obs.observe(document.body,{subtree:true,childList:true,attributes:true});
+  obs.observe(document.body, { attributes: true, childList: true, subtree: true });
 
-  function enterGameMode(){
-    document.documentElement.style.overflow='hidden';
-    document.body.style.overflow='hidden';
+  // Redimensiona dinamicamente
+  window.addEventListener('resize', setFullScreenCanvas);
+  window.addEventListener('orientationchange', setFullScreenCanvas);
 
-    const root=document.documentElement;
-    const reqFS=root.requestFullscreen||root.webkitRequestFullscreen||root.msRequestFullscreen;
-    if(reqFS){ try{ reqFS.call(root);}catch(e){} }
-    if(screen.orientation && screen.orientation.lock){
-      screen.orientation.lock('landscape').catch(()=>{ hint.style.display='flex'; setTimeout(()=>hint.style.display='none',2200); });
-    }
-
-    fitCanvas();
-
-    const fireJump=()=>{
-      const ev=new KeyboardEvent('keydown',{key:' ',code:'Space',keyCode:32,which:32,bubbles:true});
-      document.dispatchEvent(ev);
-    };
-    const onTouch=(e)=>{ e.preventDefault(); fireJump(); };
-    canvas.addEventListener('touchstart', onTouch, {passive:false});
-    canvas.addEventListener('pointerdown', (e)=>{ if(e.pointerType==='touch'){ onTouch(e);} }, {passive:false});
-    canvas.addEventListener('click', onTouch);
+  // Toque/click = simula barra de espaço (compatível com o listener do jogo no módulo)
+  function fireSpace() {
+    const ev = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });
+    document.dispatchEvent(ev);
   }
-
-  function fitCanvas(){
-    if(!canvas) return;
-    const vw=window.innerWidth, vh=window.innerHeight;
-    let w=vw-24, h=w/2;
-    if(h>vh*0.9){ h=vh*0.9; w=h*2; }
-    canvas.style.width=w+'px'; canvas.style.height=h+'px';
-  }
-  window.addEventListener('resize', fitCanvas);
-  window.addEventListener('orientationchange', fitCanvas);
-});
-</script>
-
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.getElementById('gameCanvas');
-  if (canvas) {
-    function callJump() {
-      try {
-        if (typeof jump === 'function' && !window.isJumping) jump();
-      } catch(e) { console.warn('Erro ao chamar jump:', e); }
-    }
-    const doTouch = (ev) => { ev.preventDefault(); callJump(); };
-    canvas.addEventListener('touchstart', doTouch, {passive:false});
-    canvas.addEventListener('pointerdown', (ev)=>{ if(ev.pointerType==='touch'){ doTouch(ev);} }, {passive:false});
-    canvas.addEventListener('click', doTouch);
-  }
-});
-</script>
-
-
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.getElementById('gameCanvas');
+  const handleTouch = (e) => { 
+    if (getComputedStyle(canvas).display === 'none') return;
+    e.preventDefault(); 
+    fireSpace(); 
+  };
 
   if (canvas) {
-    function setFullHeight() {
-      // Use dynamic viewport height (dvh fallback)
-      const vh = window.innerHeight;
-      canvas.style.width = '100vw';
-      canvas.style.height = vh + 'px';
-    }
-    setFullHeight();
-    window.addEventListener('resize', setFullHeight);
-    window.addEventListener('orientationchange', setFullHeight);
-
-    function callJump() {
-      try {
-        if (typeof jump === 'function' && !window.isJumping) jump();
-      } catch(e) { console.warn('Erro ao chamar jump:', e); }
-    }
-    const handleTouch = (ev) => { ev.preventDefault(); callJump(); };
-
-    canvas.addEventListener('touchstart', handleTouch, {passive:false});
-    canvas.addEventListener('pointerdown', (ev)=>{ if(ev.pointerType==='touch'){ handleTouch(ev);} }, {passive:false});
+    canvas.addEventListener('touchstart', handleTouch, { passive: false });
+    canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') handleTouch(e); }, { passive: false });
     canvas.addEventListener('click', handleTouch);
-
-    // Observer: disable scroll when game visible, restore otherwise
-    const obs = new MutationObserver(() => {
-      const visible = getComputedStyle(canvas).display !== 'none';
-      if (visible) {
-        document.documentElement.style.overflow = 'hidden';
-        document.body.style.overflow = 'hidden';
-        setFullHeight();
-      } else {
-        document.documentElement.style.overflow = 'auto';
-        document.body.style.overflow = 'auto';
-      }
-    });
-    obs.observe(document.body, {attributes:true, childList:true, subtree:true});
   }
 });
 </script>
