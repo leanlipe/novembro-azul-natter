@@ -364,5 +364,49 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const canvas = document.getElementById('gameCanvas');
+
+  if (canvas) {
+    function setFullHeight() {
+      // Use dynamic viewport height (dvh fallback)
+      const vh = window.innerHeight;
+      canvas.style.width = '100vw';
+      canvas.style.height = vh + 'px';
+    }
+    setFullHeight();
+    window.addEventListener('resize', setFullHeight);
+    window.addEventListener('orientationchange', setFullHeight);
+
+    function callJump() {
+      try {
+        if (typeof jump === 'function' && !window.isJumping) jump();
+      } catch(e) { console.warn('Erro ao chamar jump:', e); }
+    }
+    const handleTouch = (ev) => { ev.preventDefault(); callJump(); };
+
+    canvas.addEventListener('touchstart', handleTouch, {passive:false});
+    canvas.addEventListener('pointerdown', (ev)=>{ if(ev.pointerType==='touch'){ handleTouch(ev);} }, {passive:false});
+    canvas.addEventListener('click', handleTouch);
+
+    // Observer: disable scroll when game visible, restore otherwise
+    const obs = new MutationObserver(() => {
+      const visible = getComputedStyle(canvas).display !== 'none';
+      if (visible) {
+        document.documentElement.style.overflow = 'hidden';
+        document.body.style.overflow = 'hidden';
+        setFullHeight();
+      } else {
+        document.documentElement.style.overflow = 'auto';
+        document.body.style.overflow = 'auto';
+      }
+    });
+    obs.observe(document.body, {attributes:true, childList:true, subtree:true});
+  }
+});
+</script>
+
 </body>
 </html>
