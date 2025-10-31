@@ -62,8 +62,26 @@ body{
 </style>
 
 <style>
-/* Canvas: bloqueia gestos de navegação/zoom enquanto o jogo roda */
-#gameCanvas { touch-action: none; -ms-touch-action: none; }
+/* Remover logo automaticamente quando o jogo estiver ativo */
+body.game-active #mainLogo { display: none !important; }
+
+/* Canvas ocupa a tela visual, mas sem distorcer sprites (escala uniforme feita no JS) */
+#gameCanvas {
+  display: block;
+  margin: 0 auto;
+  width: 100vw;            /* tamanho visual */
+  height: 100dvh;          /* altura real do dispositivo */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;      /* evita scroll/gestos dentro do jogo */
+  -ms-touch-action: none;
+}
+
+/* Bloquear scroll apenas durante o jogo */
+body.game-active, html.game-active {
+  overflow: hidden !important;
+  height: 100%;
+}
 </style>
 
 </head>
@@ -273,56 +291,93 @@ body{
   </script>
 
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  const canvas = document.getElementById('gameCanvas');
-
-  // Ajusta o canvas para ocupar a tela inteira do celular
-  function setFullScreenCanvas() {
-    if (!canvas) return;
-    const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-    canvas.style.width = '100vw';
-    canvas.style.height = vh + 'px';
-  }
-
-  // Habilita/desabilita scroll apenas durante o jogo
-  function setScroll(active) {
-    document.documentElement.style.overflow = active ? 'hidden' : 'auto';
-    document.body.style.overflow = active ? 'hidden' : 'auto';
-  }
-
-  // Observa quando o jogo inicia (canvas aparece) e quando termina (canvas some)
-  const obs = new MutationObserver(() => {
-    const visible = getComputedStyle(canvas).display !== 'none';
-    if (visible) {
-      setScroll(true);
-      setFullScreenCanvas();
-    } else {
-      setScroll(false);
+(function(){
+  function tryFullscreen() {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req) { try { req.call(el); } catch(e) {} }
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
     }
-  });
-  obs.observe(document.body, { attributes: true, childList: true, subtree: true });
-
-  // Redimensiona dinamicamente
-  window.addEventListener('resize', setFullScreenCanvas);
-  window.addEventListener('orientationchange', setFullScreenCanvas);
-
-  // Toque/click = simula barra de espaço (compatível com o listener do jogo no módulo)
-  function fireSpace() {
-    const ev = new KeyboardEvent('keydown', { key: ' ', code: 'Space', keyCode: 32, which: 32, bubbles: true, cancelable: true });
-    document.dispatchEvent(ev);
   }
-  const handleTouch = (e) => { 
-    if (getComputedStyle(canvas).display === 'none') return;
-    e.preventDefault(); 
-    fireSpace(); 
-  };
 
-  if (canvas) {
-    canvas.addEventListener('touchstart', handleTouch, { passive: false });
-    canvas.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') handleTouch(e); }, { passive: false });
-    canvas.addEventListener('click', handleTouch);
+  function setScale(canvas, ctx) {
+    // Mantém a lógica em 800x400 (ou valores iniciais), escala apenas a renderização
+    const baseW = canvas._baseWidth || canvas.width || 800;
+    const baseH = canvas._baseHeight || canvas.height || 400;
+    // Escala uniforme para caber na viewport sem distorcer
+    const vw = window.innerWidth;
+    const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
+    const scale = Math.min(vw / baseW, vh / baseH);
+    // Ajusta o tamanho visual do canvas (CSS já faz fullscreen); aqui garantimos a escala de desenho
+    if (ctx && ctx.setTransform) {
+      ctx.setTransform(scale, 0, 0, scale, 0, 0);
+      // Desabilita suavização para pixel art
+      ctx.imageSmoothingEnabled = false;
+    }
   }
-});
+
+  function hookStart() {
+    const startBtn = document.getElementById('startButton');
+    const canvas = document.getElementById('gameCanvas');
+    if (!startBtn || !canvas) return;
+
+    // Capturar contexto e dimensões base uma única vez
+    let ctx = null;
+    function captureCtx() {
+      if (!ctx) {
+        ctx = canvas.getContext('2d');
+        // Memoriza dimensão base (logo no início, antes do jogo alterar)
+        if (!canvas._baseWidth)  canvas._baseWidth  = canvas.width  || 800;
+        if (!canvas._baseHeight) canvas._baseHeight = canvas.height || 400;
+      }
+    }
+
+    // Reforça ligação sem interferir na função original
+    startBtn.addEventListener('click', function onStartFix() {
+      // Deixa a função original startGame() rodar normalmente
+      setTimeout(() => {
+        // Marca estado de jogo ativo e remove logo
+        document.body.classList.add('game-active');
+        document.documentElement.classList.add('game-active');
+        // Tenta entrar em tela cheia
+        tryFullscreen();
+        // Captura ctx e aplica escala uniforme
+        captureCtx();
+        setScale(canvas, ctx);
+        // Eventos de redimensionamento/re-orientação
+        window.addEventListener('resize', () => setScale(canvas, ctx));
+        window.addEventListener('orientationchange', () => setScale(canvas, ctx));
+        // Touch/click = pular chamando a função real
+        function callJump() {
+          try {
+            if (typeof jump === 'function' && !window.isJumping) jump();
+          } catch(e) {}
+        }
+        const handler = (ev) => { ev.preventDefault(); callJump(); };
+        canvas.addEventListener('touchstart', handler, {passive:false});
+        canvas.addEventListener('pointerdown', (ev)=>{ if(ev.pointerType==='touch'){ handler(ev);} }, {passive:false});
+        canvas.addEventListener('click', handler);
+      }, 0);
+    }, { once: false, capture: true });
+
+    // Quando o canvas sumir (game over / sair), reativa scroll e estado
+    const obs = new MutationObserver(() => {
+      const visible = getComputedStyle(canvas).display !== 'none';
+      if (!visible) {
+        document.body.classList.remove('game-active');
+        document.documentElement.classList.remove('game-active');
+      }
+    });
+    obs.observe(document.body, {subtree:true, childList:true, attributes:true});
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', hookStart);
+  } else {
+    hookStart();
+  }
+})();
 </script>
 
 </body>
