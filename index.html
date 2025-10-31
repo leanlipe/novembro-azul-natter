@@ -62,26 +62,31 @@ body{
 </style>
 
 <style>
-/* Remover logo automaticamente quando o jogo estiver ativo */
-body.game-active #mainLogo { display: none !important; }
+/* ===== Fullscreen game mode ===== */
+html.game-active, body.game-active { overflow: hidden !important; height: 100%; }
 
-/* Canvas ocupa a tela visual, mas sem distorcer sprites (escala uniforme feita no JS) */
-#gameCanvas {
-  display: block;
-  margin: 0 auto;
-  width: 100vw;            /* tamanho visual */
-  height: 100dvh;          /* altura real do dispositivo */
+/* Oculta UI fora do jogo quando ativo */
+body.game-active #mainLogo,
+body.game-active .header,
+body.game-active #topText,
+body.game-active #description { display: none !important; }
+
+/* Canvas em modo jogo: central fixo, sem distorção */
+body.game-active #gameCanvas {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  z-index: 9999 !important;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  touch-action: none;      /* evita scroll/gestos dentro do jogo */
+  touch-action: none;
   -ms-touch-action: none;
+  background: #8fd3ff;
+  border-radius: 12px;
 }
 
-/* Bloquear scroll apenas durante o jogo */
-body.game-active, html.game-active {
-  overflow: hidden !important;
-  height: 100%;
-}
+/* Fora do jogo nada muda (mantém fluxo original) */
 </style>
 
 </head>
@@ -292,90 +297,96 @@ body.game-active, html.game-active {
 
 <script>
 (function(){
-  function tryFullscreen() {
-    const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if (req) { try { req.call(el); } catch(e) {} }
-    if (screen.orientation && screen.orientation.lock) {
-      screen.orientation.lock('landscape').catch(() => {});
-    }
+  let baseW=800, baseH=400, ctx=null;
+
+  function viewportH(){
+    return (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
   }
 
-  function setScale(canvas, ctx) {
-    // Mantém a lógica em 800x400 (ou valores iniciais), escala apenas a renderização
-    const baseW = canvas._baseWidth || canvas.width || 800;
-    const baseH = canvas._baseHeight || canvas.height || 400;
-    // Escala uniforme para caber na viewport sem distorcer
-    const vw = window.innerWidth;
-    const vh = (window.visualViewport && window.visualViewport.height) ? window.visualViewport.height : window.innerHeight;
-    const scale = Math.min(vw / baseW, vh / baseH);
-    // Ajusta o tamanho visual do canvas (CSS já faz fullscreen); aqui garantimos a escala de desenho
-    if (ctx && ctx.setTransform) {
-      ctx.setTransform(scale, 0, 0, scale, 0, 0);
-      // Desabilita suavização para pixel art
-      ctx.imageSmoothingEnabled = false;
-    }
-  }
-
-  function hookStart() {
-    const startBtn = document.getElementById('startButton');
+  function sizeCanvas(){
     const canvas = document.getElementById('gameCanvas');
-    if (!startBtn || !canvas) return;
+    if(!canvas) return;
+    if(!ctx){ ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled=false; }
+    if(!canvas._baseDone){
+      baseW = canvas.width || 800;
+      baseH = canvas.height || 400;
+      canvas._baseDone = true;
+    }
+    const vw = window.innerWidth;
+    const vh = viewportH();
+    const scale = Math.min(vw/baseW, vh/baseH);
+    const w = Math.floor(baseW*scale);
+    const h = Math.floor(baseH*scale);
+    canvas.style.width = w+'px';
+    canvas.style.height = h+'px';
+    if (ctx.setTransform) ctx.setTransform(scale,0,0,scale,0,0);
+  }
 
-    // Capturar contexto e dimensões base uma única vez
-    let ctx = null;
-    function captureCtx() {
-      if (!ctx) {
-        ctx = canvas.getContext('2d');
-        // Memoriza dimensão base (logo no início, antes do jogo alterar)
-        if (!canvas._baseWidth)  canvas._baseWidth  = canvas.width  || 800;
-        if (!canvas._baseHeight) canvas._baseHeight = canvas.height || 400;
-      }
+  function activate(){
+    document.documentElement.classList.add('game-active');
+    document.body.classList.add('game-active');
+    // tenta fullscreen (ignora erros silenciosamente)
+    const el=document.documentElement;
+    const req=el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen;
+    try{ req && req.call(el); }catch(_){}
+    sizeCanvas();
+    window.addEventListener('resize', sizeCanvas);
+    window.addEventListener('orientationchange', sizeCanvas);
+
+    // toque/click = jump() direto
+    const canvas = document.getElementById('gameCanvas');
+    const callJump=()=>{ try{ if(typeof jump==='function' && !window.isJumping) jump(); }catch(e){} };
+    const handler=(ev)=>{ ev.preventDefault(); callJump(); };
+    canvas.addEventListener('touchstart', handler, {passive:false});
+    canvas.addEventListener('pointerdown', (e)=>{ if(e.pointerType==='touch') handler(e); }, {passive:false});
+    canvas.addEventListener('click', handler);
+  }
+
+  function deactivate(){
+    document.documentElement.classList.remove('game-active');
+    document.body.classList.remove('game-active');
+    // remove transform para não interferir fora do jogo
+    const canvas = document.getElementById('gameCanvas');
+    if(canvas){
+      canvas.style.cssText = canvas.style.cssText; // keep inline but we reset below
+      canvas.style.position='';
+      canvas.style.left='';
+      canvas.style.top='';
+      canvas.style.transform='';
+      canvas.style.zIndex='';
+      canvas.style.width='';
+      canvas.style.height='';
+    }
+  }
+
+  // Monkey‑patch: garante que nossa ativação execute logo após startGame original
+  function hook(){
+    const canvas = document.getElementById('gameCanvas');
+    if(!canvas) return;
+    if(typeof window.startGame === 'function' && !window._startHooked){
+      const orig = window.startGame;
+      window.startGame = function(...args){
+        const ret = orig.apply(this, args);
+        // espera DOM aplicar mudanças de display
+        setTimeout(activate, 50);
+        return ret;
+      };
+      window._startHooked = true;
     }
 
-    // Reforça ligação sem interferir na função original
-    startBtn.addEventListener('click', function onStartFix() {
-      // Deixa a função original startGame() rodar normalmente
-      setTimeout(() => {
-        // Marca estado de jogo ativo e remove logo
-        document.body.classList.add('game-active');
-        document.documentElement.classList.add('game-active');
-        // Tenta entrar em tela cheia
-        tryFullscreen();
-        // Captura ctx e aplica escala uniforme
-        captureCtx();
-        setScale(canvas, ctx);
-        // Eventos de redimensionamento/re-orientação
-        window.addEventListener('resize', () => setScale(canvas, ctx));
-        window.addEventListener('orientationchange', () => setScale(canvas, ctx));
-        // Touch/click = pular chamando a função real
-        function callJump() {
-          try {
-            if (typeof jump === 'function' && !window.isJumping) jump();
-          } catch(e) {}
-        }
-        const handler = (ev) => { ev.preventDefault(); callJump(); };
-        canvas.addEventListener('touchstart', handler, {passive:false});
-        canvas.addEventListener('pointerdown', (ev)=>{ if(ev.pointerType==='touch'){ handler(ev);} }, {passive:false});
-        canvas.addEventListener('click', handler);
-      }, 0);
-    }, { once: false, capture: true });
-
-    // Quando o canvas sumir (game over / sair), reativa scroll e estado
-    const obs = new MutationObserver(() => {
-      const visible = getComputedStyle(canvas).display !== 'none';
-      if (!visible) {
-        document.body.classList.remove('game-active');
-        document.documentElement.classList.remove('game-active');
+    // Observa quando o canvas some (fim do jogo) para restaurar UI
+    const obs = new MutationObserver(()=>{
+      if(getComputedStyle(canvas).display === 'none'){
+        deactivate();
       }
     });
     obs.observe(document.body, {subtree:true, childList:true, attributes:true});
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', hookStart);
-  } else {
-    hookStart();
+  if(document.readyState==='loading'){
+    document.addEventListener('DOMContentLoaded', hook);
+  }else{
+    hook();
   }
 })();
 </script>
