@@ -265,5 +265,59 @@ body{
       }catch(e){console.error('Erro ao carregar ranking:',e);}
     }
   </script>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.4.0/firebase-app.js";
+  import { getFirestore, collection, getDocs, addDoc, query, where, updateDoc } 
+  from "https://www.gstatic.com/firebasejs/12.4.0/firebase-firestore.js";
+
+  // --- Mantém o restante do código original ---
+
+  // Aguarda o DOM carregar antes de conectar o botão
+  document.addEventListener("DOMContentLoaded", () => {
+    // Expõe startGame globalmente
+    if (typeof startGame === "function") window.startGame = startGame;
+
+    // Botão "Começar Jogo"
+    const btn = document.getElementById("startButton");
+    if (btn) {
+      btn.addEventListener("click", () => {
+        const nameInput = document.getElementById("playerNameInput").value.trim();
+        if (!nameInput) {
+          alert("Digite seu nome para começar o jogo!");
+          return;
+        }
+
+        document.getElementById("startScreen").style.display = "none";
+        document.getElementById("gameCanvas").style.display = "block";
+        window.playerName = nameInput;
+
+        if (typeof startGame === "function") startGame();
+
+        const canvas = document.getElementById("gameCanvas");
+        if (canvas.requestFullscreen) canvas.requestFullscreen();
+        else if (canvas.webkitRequestFullscreen) canvas.webkitRequestFullscreen();
+      });
+    }
+
+    // Toque na tela faz pular
+    document.addEventListener('touchstart', e => { 
+      e.preventDefault(); 
+      if (typeof jump === "function") jump(); 
+    });
+
+    // Mantém proporção do jogo
+    function resizeGame() {
+      const canvas = document.getElementById('gameCanvas');
+      if (canvas) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+      }
+    }
+    window.addEventListener('resize', resizeGame);
+    resizeGame();
+  });
+</script>
+
 </body>
 </html>
