@@ -1,6 +1,11 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+<style>
+  html, body { touch-action: manipulation; }
+  canvas { touch-action: none; -ms-touch-action: none; -webkit-user-select: none; user-select: none; }
+</style>
+
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>NOVEMBRO AZUL - NATTER - Jogo da Saúde</title>
@@ -317,6 +322,48 @@ body{
     window.addEventListener('resize', resizeGame);
     resizeGame();
   });
+</script>
+
+
+<script>
+(function(){
+  function callJump(){
+    if (typeof window.jump === 'function') { window.jump(); return; }
+    try { if (typeof jump === 'function') { window.jump = jump; jump(); return; } } catch(e){}
+    try {
+      const ev = new KeyboardEvent('keydown', {code:'Space', key:' ', keyCode:32, which:32, bubbles:true});
+      document.dispatchEvent(ev);
+    } catch(e){ /* ignore */ }
+  }
+  function addTouch(target){
+    if(!target) return;
+    const handler = function(e){
+      if (e.touches && e.touches.length > 1) return; // ignora multitouch
+      if (e.cancelable) e.preventDefault();
+      callJump();
+    };
+    target.addEventListener('touchstart', handler, {passive:false});
+    target.addEventListener('pointerdown', handler, {passive:false});
+    target.addEventListener('mousedown', handler);
+  }
+  function exposeJump(){
+    try { if (typeof window.jump !== 'function' && typeof jump === 'function') window.jump = jump; } catch(e){}
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    exposeJump();
+    addTouch(document.getElementById('gameCanvas'));
+    addTouch(document.body);
+    const btn = document.getElementById('startButton');
+    if (btn){
+      btn.addEventListener('click', function(){
+        setTimeout(function(){
+          exposeJump();
+          addTouch(document.getElementById('gameCanvas'));
+        }, 0);
+      });
+    }
+  });
+})();
 </script>
 
 </body>
