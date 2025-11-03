@@ -1,34 +1,6 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<style>
-  /* --- Modo imersivo mobile --- */
-  html, body { height: 100%; margin: 0; padding: 0; }
-  body.immersive { overflow: hidden; background: linear-gradient(180deg,#0b4da3 0%,#0e79ff 100%); }
-  body.immersive .header { display: none !important; } /* some iOS keep space if visibility only */
-  #gameContainer { position: relative; width: 100%; height: 100%; }
-  body.immersive #gameCanvas {
-    display: block !important;
-    position: fixed; left: 0; top: 0;
-    background: linear-gradient(to bottom,#87CEEB 0%,#E0F6FF 100%);
-    image-rendering: pixelated; /* melhora nitidez de sprites/emojis */
-  }
-  /* Placar flutuante, grande e legível */
-  #scoreDisplay {
-    position: fixed;
-    top: env(safe-area-inset-top, 10px);
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 10;
-    padding: 6px 14px;
-    border-radius: 10px;
-    background: rgba(0,0,0,0.15);
-    color: #fff;
-    font-weight: 700;
-    text-shadow: 0 2px 4px rgba(0,0,0,.4);
-  }
-</style>
-
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>NOVEMBRO AZUL - NATTER - Jogo da Saúde</title>
@@ -161,12 +133,30 @@ body{
       document.addEventListener('keydown', (e) => {
         if (e.code === 'Space' && !player.jumping && gameLoop) { e.preventDefault(); jump(); }
       });
+      document.addEventListener('touchstart', (e) => {
+        if (!player.jumping && gameLoop) {
+          e.preventDefault();
+          jump();
+        }
+      }, { passive: false });
+      // Suporte extra para telas sensíveis ao toque (pointer/touch direto no canvas)
+      function handleTouchJump(e){
+        if (!player.jumping && gameLoop){
+          e.preventDefault();
+          jump();
+        }
+      }
+      document.addEventListener('pointerdown', handleTouchJump);
+      const gameCanvasEl = document.getElementById('gameCanvas');
+      if (gameCanvasEl){
+        gameCanvasEl.addEventListener('touchstart', handleTouchJump, { passive: false });
+        gameCanvasEl.addEventListener('pointerdown', handleTouchJump);
+      }
+
       loadLeaderboard();
     });
 
     function startGame(){
-  try{__enterImmersive();}catch(e){}
-
       playerName = document.getElementById('playerNameInput').value.trim();
       if(!playerName){ alert('Digite seu nome para começar!'); return; }
       document.getElementById('mainLogo').classList.add('small');
@@ -294,65 +284,6 @@ body{
         });
       }catch(e){console.error('Erro ao carregar ranking:',e);}
     }
-  
-// === Modo Imersivo Mobile (sem distorção) ===
-let __imm_ctx = null;
-function __enterImmersive() {
-  document.body.classList.add('immersive');
-  // tela cheia quando possível
-  const el = document.documentElement;
-  if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
-  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-  __resizeGame();
-}
-
-function __resizeGame() {
-  const canvas = document.getElementById('gameCanvas');
-  if (!canvas) return;
-  const gameW = 1000, gameH = 500; // resolução lógica original
-  const vw = (window.visualViewport ? window.visualViewport.width : window.innerWidth);
-  const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
-
-  // Escala máxima mantendo proporção (letterbox/pillarbox mínimo)
-  const scale = Math.min(vw / gameW, vh / gameH);
-  const displayW = Math.floor(gameW * scale);
-  const displayH = Math.floor(gameH * scale);
-  const left = Math.floor((vw - displayW) / 2);
-  const top  = Math.floor((vh - displayH) / 2);
-
-  canvas.style.width = displayW + 'px';
-  canvas.style.height = displayH + 'px';
-  canvas.style.left = left + 'px';
-  canvas.style.top = top + 'px';
-  canvas.style.position = 'fixed';
-
-  // Mantém resolução lógica para o jogo (sem distorção)
-  canvas.width = gameW;
-  canvas.height = gameH;
-
-  // Ajusta contexto para escalar desenho sem mudar a lógica
-  const ctx = canvas.getContext('2d');
-  __imm_ctx = ctx;
-  ctx.setTransform(scale, 0, 0, scale, 0, 0); // escala tudo que for desenhado
-}
-
-// Recalcula em mudanças de viewport (iOS Address Bar + rotação)
-window.addEventListener('resize', __resizeGame);
-if (window.visualViewport) visualViewport.addEventListener('resize', __resizeGame);
-
-// Toque para pular
-document.addEventListener('touchstart', function(e){
-  if (e.cancelable) e.preventDefault();
-  try { if (typeof jump === 'function') jump(); } catch(_) {}
-}, {passive:false});
-
-</script>
+  </script>
 </body>
 </html>
-
-<script>
-  document.addEventListener('DOMContentLoaded', function(){
-    document.body.style.margin='0';
-    document.body.style.overflow='hidden';
-  });
-</script>
