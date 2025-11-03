@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
 <style>
+html,body{height:100%;overflow:hidden;}
 *{margin:0;padding:0;box-sizing:border-box}
 body{
   font-family:'Arial',sans-serif;
@@ -160,6 +161,9 @@ body{
       playerName = document.getElementById('playerNameInput').value.trim();
       if(!playerName){ alert('Digite seu nome para começar!'); return; }
       document.getElementById('mainLogo').classList.add('small');
+      const headerEl = document.querySelector('.header');
+      if(headerEl){ headerEl.style.display = 'none'; }
+
       document.getElementById('startScreen').style.display = 'none';
       document.getElementById('gameCanvas').style.display = 'block';
       document.getElementById('scoreDisplay').style.display = 'block';
@@ -178,6 +182,9 @@ body{
       document.getElementById('startScreen').style.display = 'block';
       document.getElementById('playerNameInput').value = playerName;
       document.getElementById('mainLogo').classList.remove('small');
+      const headerEl = document.querySelector('.header');
+      if(headerEl){ headerEl.style.display = 'block'; }
+
     }
 
     function jump(){ if(!player.jumping){ player.velocityY = -15; player.jumping = true; } }
