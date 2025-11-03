@@ -9,7 +9,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
 
 <style>
-html,body{height:100%;overflow:hidden;}
 *{margin:0;padding:0;box-sizing:border-box}
 body{
   font-family:'Arial',sans-serif;
@@ -122,6 +121,25 @@ body{
     const db  = getFirestore(app);
 
     let canvas, ctx, gameLoop, score = 0, playerName = '', gameSpeed = 5;
+    let preventScroll = false;
+    function disableScroll(){
+      if(preventScroll) return;
+      preventScroll = true;
+      window.addEventListener('touchmove', blockScroll, { passive:false });
+      window.addEventListener('wheel', blockScroll, { passive:false });
+    }
+    function enableScroll(){
+      if(!preventScroll) return;
+      preventScroll = false;
+      window.removeEventListener('touchmove', blockScroll);
+      window.removeEventListener('wheel', blockScroll);
+    }
+    function blockScroll(e){
+      if(preventScroll){
+        e.preventDefault();
+      }
+    }
+
     const player = { x:100, y:0, width:40, height:60, velocityY:0, jumping:false, groundY:420 };
     let obstacles = [], collectibles = [];
     let nextObstacle = 0, nextCollectible = 0;
@@ -171,6 +189,7 @@ body{
       document.getElementById('gameCanvas').style.display = 'block';
       document.getElementById('scoreDisplay').style.display = 'block';
       window.scrollTo({ top: 0 });
+      disableScroll();
 
       score = 0; gameSpeed = 5; obstacles = []; collectibles = [];
       player.y = player.groundY; player.velocityY = 0; player.jumping = false;
@@ -187,6 +206,7 @@ body{
       document.getElementById('mainLogo').classList.remove('small');
       const headerEl = document.querySelector('.header');
       if(headerEl){ headerEl.style.display = 'block'; }
+      enableScroll();
 
     }
 
@@ -259,6 +279,7 @@ body{
 
     async function endGame(){
       clearInterval(gameLoop);gameLoop=null;
+      enableScroll();
       document.getElementById('gameCanvas').style.display='none';
       document.getElementById('scoreDisplay').style.display='none';
       document.getElementById('gameOverScreen').style.display='block';
