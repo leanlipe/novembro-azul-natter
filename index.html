@@ -271,6 +271,38 @@ body{
         });
       }catch(e){console.error('Erro ao carregar ranking:',e);}
     }
-  </script>
+  
+// --- Redimensionamento em tela cheia sem distorção ---
+function resizeGame() {
+  const canvas = document.getElementById('gameCanvas');
+  if (!canvas) return;
+
+  const gameWidth = 1000;   // tamanho lógico original
+  const gameHeight = 500;
+  const windowWidth = window.innerWidth;
+  const windowHeight = window.innerHeight;
+
+  // Calcula fator de escala que cabe na tela sem distorcer
+  const scale = Math.min(windowWidth / gameWidth, windowHeight / gameHeight);
+
+  // Centraliza o canvas
+  const left = (windowWidth - gameWidth * scale) / 2;
+  const top = (windowHeight - gameHeight * scale) / 2;
+
+  canvas.style.position = 'absolute';
+  canvas.style.left = left + 'px';
+  canvas.style.top = top + 'px';
+  canvas.style.transformOrigin = 'top left';
+  canvas.style.transform = `scale(${scale})`;
+
+  // mantém resolução lógica
+  canvas.width = gameWidth;
+  canvas.height = gameHeight;
+}
+
+window.addEventListener('resize', resizeGame);
+resizeGame();
+
+</script>
 </body>
 </html>
